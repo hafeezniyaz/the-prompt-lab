@@ -584,6 +584,27 @@ export const useAppStore = create<AppState>((set, get) => {
       get().saveCurrentSession();
     },
 
+    addVariable: (variableName: string) => {
+      set((state) => ({
+        detectedVariables: [
+          ...new Set([...state.detectedVariables, variableName]),
+        ],
+      }));
+    },
+
+    removeVariable: (variableName: string) => {
+      set((state) => ({
+        detectedVariables: state.detectedVariables.filter(
+          (v) => v !== variableName
+        ),
+        variableValues: Object.fromEntries(
+          Object.entries(state.variableValues).filter(
+            ([key]) => key !== variableName
+          )
+        ),
+      }));
+    },
+
     // Tool management functions
     addTool: (tool: Omit<Tool, "id">) => {
       const newTool: Tool = {

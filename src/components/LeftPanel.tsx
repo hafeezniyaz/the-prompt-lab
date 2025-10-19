@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   DndContext,
   closestCenter,
@@ -581,7 +582,7 @@ export function LeftPanel() {
 
                 {/* Messages */}
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur-sm z-10 py-2 -my-2 border-b border-border/50">
                     <label className="text-sm font-medium">Messages</label>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">
@@ -607,16 +608,25 @@ export function LeftPanel() {
                       items={messages.map((m) => m.id)}
                       strategy={verticalListSortingStrategy}
                     >
-                      {messages.map((message) => (
-                        <SortableMessage
-                          key={message.id}
-                          message={message}
-                          onUpdate={updateMessage}
-                          onDelete={deleteMessage}
-                          onDuplicate={duplicateMessage}
-                          onGenerate={handleGenerate}
-                        />
-                      ))}
+                      <AnimatePresence>
+                        {messages.map((message) => (
+                          <motion.div
+                            key={message.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <SortableMessage
+                              message={message}
+                              onUpdate={updateMessage}
+                              onDelete={deleteMessage}
+                              onDuplicate={duplicateMessage}
+                              onGenerate={handleGenerate}
+                            />
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                     </SortableContext>
                   </DndContext>
 
