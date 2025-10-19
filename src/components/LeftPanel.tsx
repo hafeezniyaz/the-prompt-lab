@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   DndContext,
   closestCenter,
@@ -582,7 +581,7 @@ export function LeftPanel() {
 
                 {/* Messages */}
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur-sm z-10 py-2 -my-2 border-b border-border/50">
+                  <div className="flex items-center justify-between">
                     <label className="text-sm font-medium">Messages</label>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">
@@ -608,25 +607,16 @@ export function LeftPanel() {
                       items={messages.map((m) => m.id)}
                       strategy={verticalListSortingStrategy}
                     >
-                      <AnimatePresence>
-                        {messages.map((message) => (
-                          <motion.div
-                            key={message.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <SortableMessage
-                              message={message}
-                              onUpdate={updateMessage}
-                              onDelete={deleteMessage}
-                              onDuplicate={duplicateMessage}
-                              onGenerate={handleGenerate}
-                            />
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
+                      {messages.map((message) => (
+                        <SortableMessage
+                          key={message.id}
+                          message={message}
+                          onUpdate={updateMessage}
+                          onDelete={deleteMessage}
+                          onDuplicate={duplicateMessage}
+                          onGenerate={handleGenerate}
+                        />
+                      ))}
                     </SortableContext>
                   </DndContext>
 

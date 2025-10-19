@@ -534,7 +534,7 @@ export function MainPanel() {
           </div>
         )}
 
-        <ScrollArea className="h-full overflow-y-auto" ref={outputRef}>
+        <ScrollArea className="h-full" ref={outputRef}>
           <div className="p-4">
             {!output && !isGenerating && !error && (
               <div className="h-full flex items-center justify-center">
