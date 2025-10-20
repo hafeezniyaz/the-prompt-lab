@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import {
   DndContext,
@@ -282,6 +283,104 @@ function SortableMessage({
   );
 }
 
+interface QuickMessageInputProps {
+  onGenerate: () => void;
+}
+
+function QuickMessageInput({ onGenerate }: QuickMessageInputProps) {
+  const { addMessage } = useAppStore();
+  const [selectedRole, setSelectedRole] = useState<MessageRole>("user");
+  const [messageContent, setMessageContent] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleSubmit = () => {
+    if (messageContent.trim()) {
+      addMessage(selectedRole, messageContent.trim());
+      setMessageContent("");
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleSubmit();
+      setTimeout(() => {
+        onGenerate();
+      }, 100);
+    }
+  };
+
+  const IconComponent = roleIcons[selectedRole];
+
+  return (
+    <div className="border-t border-border bg-card/50 backdrop-blur-sm">
+      <div className="p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as MessageRole)}>
+            <SelectTrigger className="w-32 h-8">
+              <div className="flex items-center gap-1">
+                <IconComponent className={`h-3 w-3 ${roleColors[selectedRole]}`} />
+                <SelectValue />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="user">
+                <div className="flex items-center gap-2">
+                  <User className="h-3 w-3 text-gray-200" />
+                  User
+                </div>
+              </SelectItem>
+              <SelectItem value="assistant">
+                <div className="flex items-center gap-2">
+                  <Bot className="h-3 w-3 text-white" />
+                  Assistant
+                </div>
+              </SelectItem>
+              <SelectItem value="system">
+                <div className="flex items-center gap-2">
+                  <Settings className="h-3 w-3 text-gray-400" />
+                  System
+                </div>
+              </SelectItem>
+              <SelectItem value="tool">
+                <div className="flex items-center gap-2">
+                  <Wrench className="h-3 w-3 text-gray-300" />
+                  Tool
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <Textarea
+            ref={textareaRef}
+            value={messageContent}
+            onChange={(e) => setMessageContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type message... (Enter to add, Ctrl+Enter to add & generate)"
+            className="flex-1 min-h-[60px] max-h-[120px] resize-none text-sm"
+          />
+          <Button
+            onClick={handleSubmit}
+            disabled={!messageContent.trim()}
+            size="sm"
+            className="h-8 px-3"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="text-xs text-muted-foreground text-center">
+          Enter to add • Ctrl+Enter to add & generate • Shift+Enter for new line
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LeftPanel() {
   const {
     systemPrompt,
@@ -429,7 +528,7 @@ export function LeftPanel() {
   return (
     <div className="h-full flex flex-col">
       <Tabs defaultValue="sessions" className="h-full flex flex-col">
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border flex-shrink-0">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="sessions" className="flex items-center gap-2">
               <FolderOpen className="h-4 w-4" />
@@ -442,18 +541,14 @@ export function LeftPanel() {
           </TabsList>
         </div>
 
-        <TabsContent value="sessions" className="flex-1 m-0">
+        <TabsContent value="sessions" className="flex-1 m-0 overflow-hidden">
           <SessionsPanel />
         </TabsContent>
 
-        <TabsContent value="prompt" className="flex-1 m-0">
-          <div className="h-full flex flex-col">
-            {/* Header */}
-            <div className="p-4 border-b border-border">
-              <h2 className="text-lg font-semibold mb-2">
-                Prompt Construction
-              </h2>
-
+        <TabsContent value="prompt" className="flex-1 m-0 overflow-hidden flex flex-col">
+          {/* Scrollable Content */}
+          <ScrollArea className="flex-1">
+            <div className="p-4 space-y-4">
               {/* Template Management */}
               <div className="space-y-2">
                 <div className="flex gap-2">
@@ -489,124 +584,122 @@ export function LeftPanel() {
                   </Button>
                 </div>
               </div>
-            </div>
 
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-4">
-                {/* System Prompt */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setIsSystemPromptCollapsed(!isSystemPromptCollapsed)
-                        }
-                        className="h-6 w-6 p-0 hover:bg-accent"
-                      >
-                        {isSystemPromptCollapsed ? (
-                          <ChevronRight className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <label className="text-sm font-medium">
-                        System Prompt
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsSystemPromptModalOpen(true)}
-                        className="h-6 w-6 p-0 hover:bg-accent"
-                        title="Expand to full screen editor"
-                      >
-                        <Maximize2 className="h-4 w-4" />
-                      </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {systemPromptTokens} tokens
-                      </span>
-                    </div>
-                  </div>
-
-                  {!isSystemPromptCollapsed && (
-                    <>
-                      {isSystemPromptEditing ? (
-                        <div className="space-y-2">
-                          <Textarea
-                            ref={systemPromptRef}
-                            value={systemPromptEdit}
-                            onChange={(e) =>
-                              setSystemPromptEdit(e.target.value)
-                            }
-                            onKeyDown={handleSystemPromptKeyDown}
-                            className="min-h-[200px] max-h-[400px] resize-none font-mono text-sm overflow-y-auto"
-                            placeholder="Enter system prompt instructions... (Ctrl+Enter to save and generate)"
-                          />
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleSystemPromptCancel}
-                            >
-                              Cancel
-                            </Button>
-                            <Button size="sm" onClick={handleSystemPromptSave}>
-                              Save
-                            </Button>
-                          </div>
-                        </div>
+              {/* System Prompt */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setIsSystemPromptCollapsed(!isSystemPromptCollapsed)
+                      }
+                      className="h-6 w-6 p-0 hover:bg-accent"
+                    >
+                      {isSystemPromptCollapsed ? (
+                        <ChevronRight className="h-4 w-4" />
                       ) : (
-                        <div
-                          className="min-h-[120px] max-h-[300px] p-3 bg-card border border-border rounded-lg cursor-pointer hover:border-accent transition-colors overflow-y-auto"
-                          onClick={() => setIsSystemPromptEditing(true)}
-                        >
-                          <div className="text-sm font-mono whitespace-pre-wrap">
-                            {systemPrompt || (
-                              <span className="text-muted-foreground italic">
-                                Click to add system prompt...
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                        <ChevronDown className="h-4 w-4" />
                       )}
-                    </>
-                  )}
+                    </Button>
+                    <label className="text-sm font-medium">
+                      System Prompt
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsSystemPromptModalOpen(true)}
+                      className="h-6 w-6 p-0 hover:bg-accent"
+                      title="Expand to full screen editor"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      {systemPromptTokens} tokens
+                    </span>
+                  </div>
                 </div>
 
-                {/* Tools Section */}
-                <ToolsSection />
-
-                {/* Messages */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">Messages</label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {totalMessageTokens} tokens
-                      </span>
-                      <Button
-                        size="sm"
-                        onClick={() => addMessage("user")}
-                        className="h-7"
+                {!isSystemPromptCollapsed && (
+                  <>
+                    {isSystemPromptEditing ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          ref={systemPromptRef}
+                          value={systemPromptEdit}
+                          onChange={(e) =>
+                            setSystemPromptEdit(e.target.value)
+                          }
+                          onKeyDown={handleSystemPromptKeyDown}
+                          className="min-h-[200px] max-h-[400px] resize-none font-mono text-sm overflow-y-auto"
+                          placeholder="Enter system prompt instructions... (Ctrl+Enter to save and generate)"
+                        />
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleSystemPromptCancel}
+                          >
+                            Cancel
+                          </Button>
+                          <Button size="sm" onClick={handleSystemPromptSave}>
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="min-h-[120px] max-h-[300px] p-3 bg-card border border-border rounded-lg cursor-pointer hover:border-accent transition-colors overflow-y-auto"
+                        onClick={() => setIsSystemPromptEditing(true)}
                       >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Message
-                      </Button>
-                    </div>
-                  </div>
+                        <div className="text-sm font-mono whitespace-pre-wrap">
+                          {systemPrompt || (
+                            <span className="text-muted-foreground italic">
+                              Click to add system prompt...
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
 
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext
-                      items={messages.map((m) => m.id)}
-                      strategy={verticalListSortingStrategy}
+              {/* Tools Section */}
+              <ToolsSection />
+
+              {/* Messages */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Messages</label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {totalMessageTokens} tokens
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => addMessage("user")}
+                      className="h-7"
                     >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Message
+                    </Button>
+                  </div>
+                </div>
+
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={messages.map((m) => m.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-2">
                       {messages.map((message) => (
                         <SortableMessage
                           key={message.id}
@@ -617,29 +710,12 @@ export function LeftPanel() {
                           onGenerate={handleGenerate}
                         />
                       ))}
-                    </SortableContext>
-                  </DndContext>
-
-                  {messages.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Bot className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No messages yet</p>
-                      <p className="text-xs">
-                        Click "+ Message" to start building your conversation
-                      </p>
                     </div>
-                  )}
-                </div>
-              </div>
-            </ScrollArea>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-border">
-              <div className="text-xs text-muted-foreground text-center">
-                Total: {systemPromptTokens + totalMessageTokens} tokens
+                  </SortableContext>
+                </DndContext>
               </div>
             </div>
-          </div>
+          </ScrollArea>
         </TabsContent>
       </Tabs>
 
@@ -648,24 +724,31 @@ export function LeftPanel() {
         open={isSystemPromptModalOpen}
         onOpenChange={setIsSystemPromptModalOpen}
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>System Prompt Editor</DialogTitle>
+            <DialogTitle>System Prompt</DialogTitle>
             <DialogDescription>
-              Edit your system prompt with a maximized view. Use Ctrl+Enter to
-              save and generate, or Escape to cancel.
+              Edit your system prompt in expanded view. Press Ctrl+Enter to save
+              and generate.
             </DialogDescription>
           </DialogHeader>
-
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="flex items-center justify-between mb-4">
+          <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+            <Textarea
+              ref={systemPromptModalRef}
+              value={systemPromptEdit}
+              onChange={(e) => setSystemPromptEdit(e.target.value)}
+              onKeyDown={handleSystemPromptModalKeyDown}
+              placeholder="Enter system prompt..."
+              className="flex-1 resize-none font-mono"
+            />
+            <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
-                {systemPromptTokens} tokens
+                {countTokens(systemPromptEdit)} tokens
               </span>
               <div className="flex gap-2">
                 <Button
-                  variant="outline"
                   onClick={handleSystemPromptModalCancel}
+                  variant="outline"
                 >
                   Cancel
                 </Button>
@@ -674,15 +757,6 @@ export function LeftPanel() {
                 </Button>
               </div>
             </div>
-
-            <Textarea
-              ref={systemPromptModalRef}
-              value={systemPromptEdit}
-              onChange={(e) => setSystemPromptEdit(e.target.value)}
-              onKeyDown={handleSystemPromptModalKeyDown}
-              className="flex-1 min-h-[400px] resize-none font-mono text-sm"
-              placeholder="Enter system prompt instructions... (Ctrl+Enter to save and generate, Escape to cancel)"
-            />
           </div>
         </DialogContent>
       </Dialog>

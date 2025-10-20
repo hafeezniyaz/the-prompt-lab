@@ -1,10 +1,7 @@
-import React, { useState } from "react";
-import { useAppStore } from "../store/useAppStore";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { ScrollArea } from "./ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Badge } from "./ui/badge";
+import React, { useState, useMemo } from "react";
+import { Card, CardContent } from "./ui/card";
+import { useAppStore } from "../store/useAppStore";
 import {
   Plus,
   Play,
@@ -17,10 +14,23 @@ import {
   Settings,
   Wrench,
 } from "lucide-react";
-import { PlaygroundSession } from "../services/localStorageService";
+import { ScrollArea } from "./ui/scroll-area";
+import { Input } from "./ui/input";
+import { Badge } from "./ui/badge";
 
 interface SessionItemProps {
-  session: PlaygroundSession;
+  session: {
+    id: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+    systemPrompt: string;
+    messages: any[];
+    tools: any[];
+    apiConfiguration: {
+      apiKey: string;
+    };
+  };
   isActive: boolean;
   onLoad: (sessionId: string) => void;
   onDelete: (sessionId: string) => void;
@@ -95,12 +105,16 @@ function SessionItem({
                   if (e.key === "Enter") handleSave();
                   if (e.key === "Escape") handleCancel();
                 }}
+                onClick={(e) => e.stopPropagation()}
                 autoFocus
               />
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={handleSave}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSave();
+                }}
                 className="h-6 w-6 p-0"
               >
                 <Save className="h-3 w-3" />
@@ -108,20 +122,21 @@ function SessionItem({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={handleCancel}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCancel();
+                }}
                 className="h-6 w-6 p-0"
               >
                 <X className="h-3 w-3" />
               </Button>
             </div>
           ) : (
-            <div className="flex-1">
-              <h4
-                className="text-sm font-medium truncate"
-                onClick={() => onLoad(session.id)}
-              >
-                {session.name}
-              </h4>
+            <div
+              className="flex-1"
+              onClick={() => !isActive && onLoad(session.id)}
+            >
+              <h4 className="text-sm font-medium truncate">{session.name}</h4>
               <div className="flex items-center gap-1 mt-1">
                 <Clock className="h-3 w-3 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
@@ -136,7 +151,10 @@ function SessionItem({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => setIsEditing(true)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditing(true);
+                }}
                 className="h-6 w-6 p-0"
                 title="Rename session"
               >
@@ -145,7 +163,10 @@ function SessionItem({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => onDelete(session.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(session.id);
+                }}
                 className="h-6 w-6 p-0 text-destructive hover:text-destructive"
                 title="Delete session"
               >
@@ -188,17 +209,23 @@ function SessionItem({
 export function SessionsPanel() {
   const {
     currentSessionId,
+    sessions: allSessions,
     createSession,
     loadSession,
     deleteSession,
     renameSession,
-    getAllSessions,
     saveCurrentSession,
   } = useAppStore();
 
   const [newSessionName, setNewSessionName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
-  const sessions = getAllSessions();
+
+  const sessions = useMemo(() => {
+    return [...allSessions].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [allSessions]);
 
   const handleCreateSession = () => {
     if (newSessionName.trim()) {
@@ -211,6 +238,11 @@ export function SessionsPanel() {
   };
 
   const handleLoadSession = (sessionId: string) => {
+    // Don't reload if already active
+    if (sessionId === currentSessionId) {
+      return;
+    }
+
     // Save current session before loading new one
     saveCurrentSession();
     loadSession(sessionId);
@@ -232,9 +264,10 @@ export function SessionsPanel() {
 
   return (
     <div className="h-full flex flex-col">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Sessions</CardTitle>
+      {/* Header - Fixed at top */}
+      <div className="p-4 border-b border-border flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-base font-semibold">Sessions</h3>
           <Button
             size="sm"
             onClick={() => setIsCreating(!isCreating)}
@@ -277,41 +310,36 @@ export function SessionsPanel() {
             </Button>
           </div>
         )}
-      </CardHeader>
+      </div>
 
-      <ScrollArea className="flex-1 px-4">
-        <div className="space-y-2 pb-4">
-          {sessions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Play className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No sessions yet</p>
-              <p className="text-xs">
-                Create your first session to get started
-              </p>
-            </div>
-          ) : (
-            sessions.map((session) => (
-              <div key={session.id} className="group">
-                <SessionItem
-                  session={session}
-                  isActive={currentSessionId === session.id}
-                  onLoad={handleLoadSession}
-                  onDelete={handleDeleteSession}
-                  onRename={handleRenameSession}
-                />
+      {/* Scrollable content area - takes all remaining space */}
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-4 space-y-2">
+            {sessions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Play className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No sessions yet</p>
+                <p className="text-xs">
+                  Create your first session to get started
+                </p>
               </div>
-            ))
-          )}
-        </div>
-      </ScrollArea>
-
-      {currentSessionId && (
-        <div className="p-4 border-t border-border">
-          <div className="text-xs text-muted-foreground text-center">
-            Auto-saved to current session
+            ) : (
+              sessions.map((session) => (
+                <div key={session.id} className="group">
+                  <SessionItem
+                    session={session}
+                    isActive={currentSessionId === session.id}
+                    onLoad={handleLoadSession}
+                    onDelete={handleDeleteSession}
+                    onRename={handleRenameSession}
+                  />
+                </div>
+              ))
+            )}
           </div>
-        </div>
-      )}
+        </ScrollArea>
+      </div>
     </div>
   );
 }

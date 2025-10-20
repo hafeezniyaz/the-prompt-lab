@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -113,7 +114,7 @@ function PushToMessageButton({
     const hasRegularContent =
       cleanContent.length > 0 &&
       !cleanContent.toLowerCase().includes("reasoning_content") &&
-      !cleanContent.includes("<think>") &&
+      !cleanContent.includes("<tool_call>") &&
       !cleanContent.toLowerCase().includes("reasoning:") &&
       !cleanContent.toLowerCase().includes("let me think") &&
       !cleanContent.toLowerCase().includes("step by step") &&
@@ -270,6 +271,7 @@ export function MainPanel() {
   const outputRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [currentOutput, setCurrentOutput] = useState("");
+  const [isPushing, setIsPushing] = useState(false);
 
   // Auto-scroll to bottom during generation
   useEffect(() => {
@@ -312,8 +314,8 @@ export function MainPanel() {
 
       // Check for thinking content patterns in output
       if (
-        cleanContent.includes("<think>") ||
-        cleanContent.includes("</think>")
+        cleanContent.includes("<tool_call>") ||
+        cleanContent.includes("<tool_call>")
       ) {
         return "thinking";
       }
@@ -433,6 +435,16 @@ export function MainPanel() {
     }
   };
 
+  const handlePush = () => {
+    setIsPushing(true);
+    // Wait for animation to complete before pushing
+    setTimeout(() => {
+      pushOutputToMessages();
+      setIsPushing(false);
+      resetOutput();
+    }, 500);
+  };
+
   const processedPrompt = getProcessedPrompt();
   const processedMessages = getProcessedMessages();
   const promptTokens = countPromptTokens(processedPrompt, processedMessages);
@@ -472,8 +484,8 @@ export function MainPanel() {
                 <PushToMessageButton
                   output={output}
                   outputType={outputType}
-                  onPush={pushOutputToMessages}
-                  disabled={isGenerating}
+                  onPush={handlePush}
+                  disabled={isGenerating || isPushing}
                 />
                 <Button
                   variant="outline"
@@ -521,8 +533,8 @@ export function MainPanel() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 relative">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-hidden relative">
         {error && (
           <div className="absolute top-0 left-0 right-0 z-10">
             <div className="m-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
@@ -534,7 +546,7 @@ export function MainPanel() {
           </div>
         )}
 
-        <ScrollArea className="h-full" ref={outputRef}>
+        <ScrollArea className="h-full">
           <div className="p-4">
             {!output && !isGenerating && !error && (
               <div className="h-full flex items-center justify-center">
@@ -570,7 +582,7 @@ export function MainPanel() {
             )}
 
             {(output || isGenerating) && (
-              <Card className="border-0 shadow-none bg-transparent">
+              <Card className={`border-0 shadow-none bg-transparent ${isPushing ? 'push-to-messages-animation' : ''}`}>
                 <CardContent className="p-0">
                   <OutputWrapper outputType={outputType}>
                     <div className="prose prose-invert prose-sm max-w-none">

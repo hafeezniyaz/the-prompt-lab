@@ -127,12 +127,32 @@ class LocalStorageService {
 
   deleteSession(sessionId: string): void {
     const data = this.getStorageData();
-    data.sessions = data.sessions.filter((s) => s.id !== sessionId);
+    const sessionIndex = data.sessions.findIndex((s) => s.id === sessionId);
 
-    // If we're deleting the current session, clear it
+    if (sessionIndex === -1) {
+      return; // Session not found
+    }
+
+    data.sessions.splice(sessionIndex, 1);
+
+    // If we deleted the current session, find a new one to make active
     if (data.currentSessionId === sessionId) {
-      data.currentSessionId = null;
-      localStorage.removeItem(CURRENT_SESSION_KEY);
+      // Sort remaining sessions by most recently updated
+      const sortedSessions = [...data.sessions].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+
+      // Set the new current session to the most recent one, or null if none are left
+      const newCurrentSessionId =
+        sortedSessions.length > 0 ? sortedSessions[0].id : null;
+      data.currentSessionId = newCurrentSessionId;
+
+      if (newCurrentSessionId) {
+        localStorage.setItem(CURRENT_SESSION_KEY, newCurrentSessionId);
+      } else {
+        localStorage.removeItem(CURRENT_SESSION_KEY);
+      }
     }
 
     this.setStorageData(data);

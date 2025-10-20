@@ -1,3 +1,4 @@
+
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import {
@@ -65,6 +66,7 @@ export interface ConfigPreset {
 export interface AppState {
   // Current Session
   currentSessionId: string | null;
+  sessions: PlaygroundSession[]; // Add this line
 
   // Prompt and Messages
   systemPrompt: string;
@@ -92,6 +94,7 @@ export interface AppState {
 
   // Variables
   detectedVariables: string[];
+  manualVariables: string[];
   variableValues: Record<string, string>;
 
   // UI State
@@ -141,6 +144,8 @@ export interface AppState {
   ) => void;
 
   updateVariableValues: (values: Record<string, string>) => void;
+  addManualVariable: (name: string, value: string) => void;
+  deleteManualVariable: (name: string) => void;
 
   setMissionControlOpen: (open: boolean) => void;
   setPanelWidths: (left: number, right: number) => void;
@@ -183,13 +188,22 @@ const detectVariables = (text: string): string[] => {
 
 const processTextWithVariables = (
   text: string,
-  variables: Record<string, string>
+  variables: Record<string, string>,
+  allVariableNames: string[] = []
 ): string => {
   let processed = text;
-  Object.entries(variables).forEach(([key, value]) => {
+  
+  // Replace variables with their values or empty string if undefined
+  const allVars = allVariableNames.length > 0 ? allVariableNames : Object.keys(variables);
+  allVars.forEach((key) => {
     const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g");
+    const value = variables[key] !== undefined ? variables[key] : "";
     processed = processed.replace(regex, value);
   });
+  
+  // Also replace any remaining variables not in the list with empty string
+  processed = processed.replace(/\{\{([^}]+)\}\}/g, "");
+  
   return processed;
 };
 
@@ -222,6 +236,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     return {
       currentSessionId,
+      sessions: localStorageService.getAllSessions(), // Initialize sessions
       ...sessionData,
       templates: localStorageService.getAllTemplates(),
       configPresets: localStorageService.getAllConfigPresets(),
@@ -243,7 +258,9 @@ export const useAppStore = create<AppState>((set, get) => {
       totalTokens: 0,
     },
     detectedVariables: [],
+    manualVariables: [],
     isMissionControlOpen: false,
+    isRightPanelCollapsed: false,
 
     // Actions
     setSystemPrompt: (prompt: string) => {
@@ -427,8 +444,8 @@ export const useAppStore = create<AppState>((set, get) => {
 
         // Check for thinking content patterns
         if (
-          cleanContent.includes("<think>") &&
-          cleanContent.includes("</think>")
+          cleanContent.includes("<tool_call>") &&
+          cleanContent.includes("<tool_call>")
         ) {
           return { type: "thinking", cleanContent };
         }
@@ -504,7 +521,7 @@ export const useAppStore = create<AppState>((set, get) => {
         const hasRegularContent =
           cleanContent.length > 0 &&
           !cleanContent.toLowerCase().includes("reasoning_content") &&
-          !cleanContent.includes("<think>") &&
+          !cleanContent.includes("<tool_call>") &&
           !cleanContent.toLowerCase().includes("reasoning:") &&
           !cleanContent.toLowerCase().includes("let me think") &&
           !cleanContent.toLowerCase().includes("step by step") &&
@@ -579,6 +596,23 @@ export const useAppStore = create<AppState>((set, get) => {
     updateVariableValues: (values: Record<string, string>) => {
       set((state) => ({
         variableValues: { ...state.variableValues, ...values },
+      }));
+      // Auto-save current session
+      get().saveCurrentSession();
+    },
+
+    addManualVariable: (name: string, value: string) => {
+      set((state) => ({
+        manualVariables: [...state.manualVariables, name],
+        variableValues: { ...state.variableValues, [name]: value },
+      }));
+      // Auto-save current session
+      get().saveCurrentSession();
+    },
+
+    deleteManualVariable: (name: string) => {
+      set((state) => ({
+        manualVariables: state.manualVariables.filter((v) => v !== name),
       }));
       // Auto-save current session
       get().saveCurrentSession();
@@ -693,17 +727,24 @@ export const useAppStore = create<AppState>((set, get) => {
 
     // Session Management
     createSession: (name: string) => {
-      const state = get();
-      const session = localStorageService.createSession(name, {
-        systemPrompt: state.systemPrompt,
-        messages: state.messages,
-        apiConfiguration: state.apiConfiguration,
-        tools: state.tools,
-        variableValues: state.variableValues,
+      const currentState = get();
+      const newSession = localStorageService.createSession(name, {
+        systemPrompt: currentState.systemPrompt,
+        messages: currentState.messages,
+        apiConfiguration: currentState.apiConfiguration,
+        tools: currentState.tools,
+        variableValues: currentState.variableValues,
       });
-
-      set({ currentSessionId: session.id });
-      localStorageService.setCurrentSession(session.id);
+      localStorageService.setCurrentSession(newSession.id);
+      set({
+        currentSessionId: newSession.id,
+        systemPrompt: newSession.systemPrompt,
+        messages: newSession.messages,
+        apiConfiguration: newSession.apiConfiguration,
+        tools: newSession.tools,
+        variableValues: newSession.variableValues,
+        sessions: localStorageService.getAllSessions(), // Refresh sessions list
+      });
     },
 
     loadSession: (sessionId: string) => {
@@ -731,26 +772,28 @@ export const useAppStore = create<AppState>((set, get) => {
           tools: state.tools,
           variableValues: state.variableValues,
         });
+        set({ sessions: localStorageService.getAllSessions() }); // Refresh sessions list
       }
     },
 
     deleteSession: (sessionId: string) => {
       localStorageService.deleteSession(sessionId);
-      const state = get();
-      if (state.currentSessionId === sessionId) {
-        set({
-          currentSessionId: null,
-          systemPrompt: "",
-          messages: [],
-          apiConfiguration: defaultAPIConfiguration,
-          tools: [],
-          variableValues: {},
-        });
+      const newCurrentSessionId = localStorageService.getCurrentSessionId();
+      set({ sessions: localStorageService.getAllSessions() }); // Refresh sessions list
+
+      if (get().currentSessionId === sessionId) {
+        if (newCurrentSessionId) {
+          get().loadSession(newCurrentSessionId);
+        } else {
+          // No sessions left, create a default one
+          get().createSession("Default Session");
+        }
       }
     },
 
     renameSession: (sessionId: string, newName: string) => {
       localStorageService.renameSession(sessionId, newName);
+      set({ sessions: localStorageService.getAllSessions() }); // Refresh sessions list
     },
 
     getAllSessions: () => {
